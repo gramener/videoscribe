@@ -15,13 +15,13 @@ const eventStreamHeaders = {
 };
 const keyFrameArgs = [
   "-vf",
-  "select='key',showinfo,scale='if(gt(a,1),512,-2)':'if(gt(a,1),-2,512)'",
+  "select='key',showinfo",
   "-vsync",
   "vfr",
   "-compression_level",
   "10",
 ];
-const audioArgs = ["-vn", "-acodec", "libmp3lame", "-q:a", "2"];
+const audioArgs = ["-b:a", "32k", "-ac", "1", "-ar", "22050"];
 const writeEvent = (key, data, res) => {
   const textData = Buffer.from(data).toString("utf-8");
   res.write(`data: ${JSON.stringify({ [key]: textData })}\n\n`);

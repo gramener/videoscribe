@@ -7,6 +7,7 @@
     "videoscribe": "./cli.js"
   },
   "scripts": {
+    "start": "node cli.js",
     "prepublishOnly": "npx prettier --write *.js *.md package.json"
   },
   "author": "S Anand <root.node@gmail.com>",
