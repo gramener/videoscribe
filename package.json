@@ -1,0 +1,24 @@
+{
+  "name": "videoscribe",
+  "version": "1.0.0",
+  "description": "Convert a video into annotated slides",
+  "type": "module",
+  "bin": {
+    "videoscribe": "./cli.js"
+  },
+  "scripts": {
+    "prepublishOnly": "npx prettier --write *.js *.md package.json"
+  },
+  "author": "S Anand <root.node@gmail.com>",
+  "license": "MIT",
+  "prettier": {
+    "printWidth": 120
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1"
+  }
+}
