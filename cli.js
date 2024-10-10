@@ -1,9 +1,11 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
-import { spawn } from "child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import multer from "multer";
-import fs from "fs";
+import fs from "node:fs";
+import process from "node:process";
+import { Buffer } from "node:buffer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -13,14 +15,7 @@ const eventStreamHeaders = {
   "Cache-Control": "no-cache",
   Connection: "keep-alive",
 };
-const keyFrameArgs = [
-  "-vf",
-  "select='key',showinfo",
-  "-vsync",
-  "vfr",
-  "-compression_level",
-  "10",
-];
+const keyFrameArgs = ["-vf", "select='key',showinfo", "-vsync", "vfr", "-compression_level", "10"];
 const audioArgs = ["-b:a", "32k", "-ac", "1", "-ar", "22050"];
 const writeEvent = (key, data, res) => {
   const textData = Buffer.from(data).toString("utf-8");
@@ -31,12 +26,12 @@ app.use(express.static(path.join(__dirname, "static")));
 
 // Set up multer for handling file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, callback) => {
+  destination: (_req, file, callback) => {
     const uploadDir = path.join("static", "uploads", file.originalname);
     fs.mkdirSync(uploadDir, { recursive: true });
     callback(null, uploadDir);
   },
-  filename: (req, file, callback) => callback(null, file.originalname),
+  filename: (_req, file, callback) => callback(null, file.originalname),
 });
 const upload = multer({ storage });
 
@@ -45,7 +40,10 @@ const ffmpeg = (args, res) => {
   ffmpeg.stdout.on("data", (data) => writeEvent("stdout", data, res));
   ffmpeg.stderr.on("data", (data) => writeEvent("stderr", data, res));
   ffmpeg.on("close", (code) => {
-    const output = args.at(-1).replace(/\\/g, "/").replace(/^static\//, '');
+    const output = args
+      .at(-1)
+      .replace(/\\/g, "/")
+      .replace(/^static\//, "");
     res.write(`data: ${JSON.stringify({ code, output })}\n\n`);
     res.end();
   });

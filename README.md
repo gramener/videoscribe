@@ -16,33 +16,28 @@ Video Scribe is a web application that processes video files, extracting audio, 
 - Node.js (v14 or later)
 - FFmpeg
 
-## Installation
-
-Clone the repository and install dependencies:
-
-```bash
-bash
-git clone https://github.com/gramener/videoscribe.git
-cd videoscribe
-npm install
-```
-
 ## Usage
 
-1. Start the server:
+No installation required. Start the server via:
 
 ```bash
-npm start
+npx videoscribe
 ```
 
-2. Open your browser and navigate to `http://localhost:3000`.
-3. Upload a video file and interact with the interface to process the video.
-4. Wait for the processing to complete. You'll see progress updates in the UI.
-5. Once processing is done, you can:
-   - View and edit the transcript
-   - Play the extracted audio
-   - Toggle key frames on/off
-   - Export the result as a markdown file
+or:
+
+```bash
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run https://raw.githubusercontent.com/gramener/videoscribe/refs/heads/main/cli.js
+```
+
+Then open your browser and navigate to `http://localhost:3000` and upload a video file.
+
+This will transcribe the audio and extract key frames from the video. You can then:
+
+1. View and edit the transcript
+2. Play the extracted audio
+3. Toggle key frames on/off
+4. Export the result as a Markdown file
 
 ## API Endpoints
 
