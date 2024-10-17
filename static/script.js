@@ -1,5 +1,6 @@
 import { render, html } from "https://cdn.jsdelivr.net/npm/lit-html@3/+esm";
 import { SSE } from "https://cdn.jsdelivr.net/npm/sse.js@2";
+import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3/+esm";
 
 const $alert = document.getElementById("alert");
 const $step = document.getElementById("step");
@@ -8,7 +9,6 @@ const $result = document.getElementById("result");
 const $fileInput = document.getElementById("file");
 const $controls = document.getElementById("controls");
 const $audioOutput = document.getElementById("audio-output");
-const $export = document.getElementById("export");
 const info = {};
 
 $fileInput.addEventListener("change", async (event) => {
@@ -37,9 +37,9 @@ $fileInput.addEventListener("change", async (event) => {
     // Extract keyframes
     $step.textContent = "Extracting keyframes...";
     for await (const match of keyframes(formData)) {
-      const [n, time] = match.slice(1);
-      const filename = `uploads/${file.name}/keyframe-${(parseInt(n) + 1).toString().padStart(4, "0")}.jpg`;
-      info.keyframes.push({ filename, time: parseFloat(time) });
+      const [n, start] = match.slice(1);
+      const filename = `uploads/${file.name}/${(parseInt(n) + 1).toString().padStart(4, "0")}.jpg`;
+      info.keyframes.push({ filename, start: parseFloat(start) });
       draw();
     }
 
@@ -107,52 +107,47 @@ async function transcribe(audioURL) {
   return fetch(url, { method: "POST", credentials: "include", body: formData }).then((r) => r.json());
 }
 
+const renderKeyframe = ({ index, start, filename, caption }) => html`
+  <div class="keyframe mb-3 me-3 position-relative" data-index="${index}">
+    <figure class="figure m-0">
+      <img
+        title="${start}"
+        src="${filename}"
+        alt="${caption || `Keyframe at ${start}s`}"
+        class="img-fluid m-1 mw-50 figure-img"
+      />
+      <figcaption class="figure-caption text-center">${caption || ""}</figcaption>
+    </figure>
+    <button class="btn btn-sm btn-success position-absolute top-0 end-0 m-2 generate-caption">
+      <i class="bi bi-magic"></i>
+    </button>
+  </div>
+`;
+
+const renderSegment = ({ index, start, end, text }) =>
+  html`<p class="segment" data-index="${index}" contenteditable title="${start}-${end}">${text.trim()}</p>`;
+
 function draw() {
-  const renderKeyframe = (keyframe, index) => html`
-    <div class="img-box mb-3 me-3 position-relative" data-index="${index}">
-      <figure class="figure m-0">
-        <img
-          src="${keyframe.filename}"
-          alt="${keyframe.caption || `Keyframe at ${keyframe.time}s`}"
-          class="img-fluid m-1 mw-50 figure-img"
-        />
-        <figcaption class="figure-caption text-center">${keyframe.caption || ""}</figcaption>
-      </figure>
-      <button class="btn btn-sm btn-success position-absolute top-0 end-0 m-2 generate-caption">
-        <i class="bi bi-magic"></i>
-      </button>
-    </div>
-  `;
-  let index = 0;
-  const content = info.transcript.segments.map((segment) => {
-    const newIndex = info.keyframes.findIndex((kf) => kf.time > segment.end);
-    const frames = info.keyframes.slice(index, newIndex);
-    index = newIndex;
-    return html`
-      <div class="mb-3">
-        <div class="d-flex flex-wrap">${frames.map(renderKeyframe)}</div>
-        <p contenteditable data-start="${segment.start}" data-end="${segment.end}">${segment.text}</p>
-      </div>
-    `;
-  });
-  const suffix = html`
-    <div class="mb-3">
-      <div class="d-flex flex-wrap">
-        ${info.keyframes.slice(index).map((kf, i) => renderKeyframe(kf, i + info.keyframes.length))}
-      </div>
-    </div>
-  `;
-  render(html`${content}${suffix}`, $result);
+  info.parts = [
+    ...info.keyframes.map((d, i) => ({ type: "keyframe", index: i, ...d })),
+    ...info.transcript.segments.map((d, i) => ({ type: "segment", index: i, ...d })),
+  ];
+  // Sort parts by time, then type
+  info.parts.sort((a, b) => a.start - b.start || a.type.localeCompare(b.type));
+  render(
+    info.parts.map((d) => (d.type === "keyframe" ? renderKeyframe : renderSegment)(d)),
+    $result,
+  );
 }
 
 $result.addEventListener("click", async (event) => {
   const $generate = event.target.closest(".generate-caption");
   if ($generate) {
     // Get the [data-index] from the sibling img
-    const index = +$generate.closest(".img-box").dataset.index;
+    const index = +$generate.closest(".keyframe").dataset.index;
     info.keyframes[index].caption = "Generating...";
     draw();
-    const imageDataUrl = getBase64FromImg($generate.closest(".img-box").querySelector("img"));
+    const imageDataUrl = await getImageData($generate.closest(".keyframe").querySelector("img"));
     const [, imageType, imageData] = imageDataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
     const response = await fetch("https://llmfoundry.straive.com/openai/v1/chat/completions", {
       method: "POST",
@@ -180,7 +175,7 @@ $result.addEventListener("click", async (event) => {
   }
 
   if (event.target.tagName === "IMG") {
-    event.target.closest(".img-box").classList.toggle("ignore");
+    event.target.closest(".keyframe").classList.toggle("ignore");
     draw();
   } else if (event.target.tagName === "P") {
     const start = parseFloat(event.target.dataset.start);
@@ -191,48 +186,55 @@ $result.addEventListener("click", async (event) => {
   }
 });
 
-$controls.addEventListener("click", (event) => {
-  const $export = event.target.closest(".export");
-  if (!$export) return;
+document.querySelector("#export").addEventListener("click", async (event) => {
   // Add a spinner to the export button
-  const originalText = $export.textContent;
-  $export.innerHTML = 'Exporting <div class="spinner-border"></div>';
-  $export.disabled = true;
-  let blob;
-  if ($export.dataset.format === "md") {
-    const markdown = Array.from($result.querySelectorAll("p[contenteditable], img:not(.ignore)"))
-      .map((el) => {
-        if (el.tagName === "P") return el.textContent.trim() + "\n\n";
-        if (el.tagName === "IMG") return `![${el.alt.replace(/\]/g, "\\]")}](${getBase64FromImg(el)})\n\n`;
-      })
-      .join("");
-    blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-  } else if ($export.dataset.format === "json") {
-    const json = JSON.stringify(info, null, 2);
-    blob = new Blob([json], { type: "application/json;charset=utf-8" });
-  }
+  event.target.innerHTML = 'Exporting <div class="spinner-border"></div>';
+  const elements = $result.querySelectorAll(".keyframe, .segment");
+  const parts = info.parts
+    .map(({ type, filename, text, start, end }, i) => [
+      { type, ...(type == "keyframe" ? { filename, start } : { text, start, end }) },
+      elements[i].matches(".ignore"),
+    ])
+    .filter(([, ignore]) => !ignore)
+    .map(([d]) => d);
+  parts.forEach((d) => {
+    if (d.type == "keyframe") d.filename = d.filename.split("/").pop();
+  });
+  const zip = new JSZip();
+  const markdown = parts
+    .map((d) => {
+      if (d.type == "segment") return d.text + "\n\n";
+      if (d.type == "keyframe") return `![${(d.caption || "").replace(/\]/g, "\\")}](${d.filename})\n\n`;
+    })
+    .join("");
+  zip.file("transcript.md", new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+  zip.file("transcript.json", new Blob([JSON.stringify(parts, null, 2)], { type: "application/json;charset=utf-8" }));
+  for (const img of $result.querySelectorAll(".keyframe:not(.ignore) img"))
+    zip.file(img.src.split("/").pop(), await getImageData(img, "blob"));
+  const blob = await zip.generateAsync({ type: "blob" });
   const link = Object.assign(document.createElement("a"), {
     href: URL.createObjectURL(blob),
-    download: `transcript.${$export.dataset.format}`,
+    download: `transcript.zip`,
   });
   link.click();
   URL.revokeObjectURL(link.href);
   // Remove the spinner
-  $export.innerHTML = originalText;
-  $export.disabled = false;
+  event.target.innerHTML = "Export";
 });
 
-const getBase64FromImg = (img) => {
+const getImageData = async (img, format = "base64") => {
   const canvas = Object.assign(document.createElement("canvas"), {
     width: img.naturalWidth,
     height: img.naturalHeight,
   });
   canvas.getContext("2d").drawImage(img, 0, 0);
-  return canvas.toDataURL("image/jpeg");
+  return format == "base64"
+    ? canvas.toDataURL("image/jpeg")
+    : new Promise((resolve) => canvas.toBlob((blob) => resolve(blob)));
 };
 
 // Retry loading images that error out
-const retryOnError = (img) => img.addEventListener("error", () => setTimeout(() => (img.src = img.src), 1000));
+const retryOnError = (img) => img?.addEventListener("error", () => setTimeout(() => (img.src = img.src), 1000));
 new MutationObserver((mutations) =>
-  mutations.forEach((m) => m.addedNodes.forEach((node) => node.tagName === "IMG" && retryOnError(node))),
+  mutations.forEach((m) => m.addedNodes.forEach((node) => retryOnError(node.querySelector?.("img")))),
 ).observe($result, { childList: true, subtree: true });

@@ -58,7 +58,7 @@ app.post("/audio", upload.single("file"), (req, res) => {
 
 app.post("/keyframes", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).send("No file uploaded.");
-  const output = path.join(path.dirname(req.file.path), "keyframe-%04d.jpg");
+  const output = path.join(path.dirname(req.file.path), "%04d.jpg");
   res.writeHead(200, eventStreamHeaders);
   ffmpeg(["-i", req.file.path, ...keyFrameArgs, output], res);
 });
