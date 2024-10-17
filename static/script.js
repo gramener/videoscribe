@@ -170,3 +170,9 @@ const getBase64FromImg = (img) => {
   canvas.getContext("2d").drawImage(img, 0, 0);
   return canvas.toDataURL("image/jpeg");
 };
+
+// Retry loading images that error out
+const retryOnError = (img) => img.addEventListener("error", () => setTimeout(() => (img.src = img.src), 1000));
+new MutationObserver((mutations) =>
+  mutations.forEach((m) => m.addedNodes.forEach((node) => node.tagName === "IMG" && retryOnError(node))),
+).observe($result, { childList: true, subtree: true });
