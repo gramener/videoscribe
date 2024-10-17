@@ -108,34 +108,79 @@ async function transcribe(audioURL) {
 }
 
 function draw() {
+  const renderKeyframe = (keyframe, index) => html`
+    <div class="img-box mb-3 me-3 position-relative" data-index="${index}">
+      <figure class="figure m-0">
+        <img
+          src="${keyframe.filename}"
+          alt="${keyframe.caption || `Keyframe at ${keyframe.time}s`}"
+          class="img-fluid m-1 mw-50 figure-img"
+        />
+        <figcaption class="figure-caption text-center">${keyframe.caption || ""}</figcaption>
+      </figure>
+      <button class="btn btn-sm btn-success position-absolute top-0 end-0 m-2 generate-caption">
+        <i class="bi bi-magic"></i>
+      </button>
+    </div>
+  `;
   let index = 0;
-  render(
-    html`
-      ${info.transcript.segments.map((segment) => {
-        const frames = [];
-        while (index < info.keyframes.length && info.keyframes[index].time <= segment.end) {
-          const keyframe = info.keyframes[index];
-          frames.push(html`
-            <img
-              data-index="${index}"
-              src="${keyframe.filename}"
-              alt="Keyframe at ${keyframe.time}s"
-              class="img-fluid d-block m-1"
-            />
-          `);
-          index++;
-        }
-        return html` <p>${frames}</p>
-          <p contenteditable data-start="${segment.start}" data-end="${segment.end}">${segment.text}</p>`;
-      })}
-    `,
-    $result,
-  );
+  const content = info.transcript.segments.map((segment) => {
+    const newIndex = info.keyframes.findIndex((kf) => kf.time > segment.end);
+    const frames = info.keyframes.slice(index, newIndex);
+    index = newIndex;
+    return html`
+      <div class="mb-3">
+        <div class="d-flex flex-wrap">${frames.map(renderKeyframe)}</div>
+        <p contenteditable data-start="${segment.start}" data-end="${segment.end}">${segment.text}</p>
+      </div>
+    `;
+  });
+  const suffix = html`
+    <div class="mb-3">
+      <div class="d-flex flex-wrap">
+        ${info.keyframes.slice(index).map((kf, i) => renderKeyframe(kf, i + info.keyframes.length))}
+      </div>
+    </div>
+  `;
+  render(html`${content}${suffix}`, $result);
 }
 
-$result.addEventListener("click", (event) => {
+$result.addEventListener("click", async (event) => {
+  const $generate = event.target.closest(".generate-caption");
+  if ($generate) {
+    // Get the [data-index] from the sibling img
+    const index = +$generate.closest(".img-box").dataset.index;
+    info.keyframes[index].caption = "Generating...";
+    draw();
+    const imageDataUrl = getBase64FromImg($generate.closest(".img-box").querySelector("img"));
+    const [, imageType, imageData] = imageDataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+    const response = await fetch("https://llmfoundry.straive.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Describe this SAFE image for a blind person. List all objects. Avoid introductory phrases like 'The image...'",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:image/${imageType};base64,${imageData}`, detail: "low" } },
+            ],
+          },
+        ],
+      }),
+    }).then((r) => r.json());
+    info.keyframes[index].caption = response.choices[0].message.content;
+    draw();
+  }
+
   if (event.target.tagName === "IMG") {
-    event.target.classList.toggle("ignore");
+    event.target.closest(".img-box").classList.toggle("ignore");
     draw();
   } else if (event.target.tagName === "P") {
     const start = parseFloat(event.target.dataset.start);
@@ -146,20 +191,35 @@ $result.addEventListener("click", (event) => {
   }
 });
 
-$export.addEventListener("click", () => {
-  const markdown = Array.from($result.querySelectorAll("p[contenteditable], img:not(.ignore)"))
-    .map((el) => {
-      if (el.tagName === "P") return el.textContent.trim() + "\n\n";
-      if (el.tagName === "IMG") return `![Keyframe at ${el.alt}](${getBase64FromImg(el)})\n\n`;
-    })
-    .join("");
-  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+$controls.addEventListener("click", (event) => {
+  const $export = event.target.closest(".export");
+  if (!$export) return;
+  // Add a spinner to the export button
+  const originalText = $export.textContent;
+  $export.innerHTML = 'Exporting <div class="spinner-border"></div>';
+  $export.disabled = true;
+  let blob;
+  if ($export.dataset.format === "md") {
+    const markdown = Array.from($result.querySelectorAll("p[contenteditable], img:not(.ignore)"))
+      .map((el) => {
+        if (el.tagName === "P") return el.textContent.trim() + "\n\n";
+        if (el.tagName === "IMG") return `![${el.alt.replace(/\]/g, "\\]")}](${getBase64FromImg(el)})\n\n`;
+      })
+      .join("");
+    blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+  } else if ($export.dataset.format === "json") {
+    const json = JSON.stringify(info, null, 2);
+    blob = new Blob([json], { type: "application/json;charset=utf-8" });
+  }
   const link = Object.assign(document.createElement("a"), {
     href: URL.createObjectURL(blob),
-    download: "transcript.md",
+    download: `transcript.${$export.dataset.format}`,
   });
   link.click();
   URL.revokeObjectURL(link.href);
+  // Remove the spinner
+  $export.innerHTML = originalText;
+  $export.disabled = false;
 });
 
 const getBase64FromImg = (img) => {

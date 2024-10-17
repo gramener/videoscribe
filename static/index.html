@@ -12,8 +12,19 @@
       max-width: 40rem;
     }
 
-    #result img.ignore {
-      height: 16px;
+    #result .img-box {
+      max-width: 25rem;
+    }
+
+    #result .ignore {
+      img {
+        height: 16px;
+      }
+
+      .generate-caption,
+      .figure-caption {
+        display: none;
+      }
     }
   </style>
 </head>
@@ -72,7 +83,8 @@
 
     <div id="controls" class="position-fixed mb-2 me-2 bottom-0 end-0 d-flex align-items-center d-none">
       <audio id="audio-output" controls></audio>
-      <button type="button" id="export" class="btn btn-primary ms-2">Export</button>
+      <button type="button" class="export btn btn-primary ms-2" data-format="md">Export Markdown</button>
+      <button type="button" class="export btn btn-primary ms-2" data-format="json">Export JSON</button>
     </div>
   </div>
 
