@@ -101,7 +101,7 @@ async function transcribe(audioURL) {
   const url = "https://llmfoundry.straive.com/groq/openai/v1/audio/transcriptions";
   const formData = new FormData();
   formData.append("response_format", "verbose_json");
-  formData.append("model", "distil-whisper-large-v3-en");
+  formData.append("model", "whisper-large-v3");
   formData.append("language", "en");
   formData.append("file", await fetch(audioURL).then((r) => r.blob()), "audio.wav");
   return fetch(url, { method: "POST", credentials: "include", body: formData }).then((r) => r.json());

@@ -30,6 +30,8 @@ or:
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run https://raw.githubusercontent.com/gramener/videoscribe/refs/heads/main/cli.js
 ```
 
+Log into [LLM Foundry](https://llmfoundry.straive.com/).
+
 Then open your browser and navigate to `http://localhost:3000` and upload a video file.
 
 This will transcribe the audio and extract key frames from the video. You can then:
@@ -37,7 +39,7 @@ This will transcribe the audio and extract key frames from the video. You can th
 1. View and edit the transcript
 2. Play the extracted audio
 3. Toggle key frames on/off
-4. Export the result as a Markdown file
+4. Export the result as a ZIP file with the keyframes, Markdown transcript and JSON transcript
 
 ## API Endpoints
 
