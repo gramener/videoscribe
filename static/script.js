@@ -2,24 +2,21 @@ import { render, html } from "https://cdn.jsdelivr.net/npm/lit-html@3/+esm";
 import { SSE } from "https://cdn.jsdelivr.net/npm/sse.js@2";
 import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3/+esm";
 
+const $videoForm = document.getElementById("video-form");
 const $alert = document.getElementById("alert");
 const $step = document.getElementById("step");
 const $log = document.getElementById("log");
 const $result = document.getElementById("result");
-const $fileInput = document.getElementById("file");
 const $controls = document.getElementById("controls");
 const $audioOutput = document.getElementById("audio-output");
 const info = {};
 
-$fileInput.addEventListener("change", async (event) => {
+$videoForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
   $alert.classList.add("d-none");
 
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const formData = new FormData();
-  formData.append("file", file);
-
+  const formData = new FormData($videoForm);
+  const file = formData.get("file");
   info.keyframes = [];
 
   try {
@@ -29,7 +26,12 @@ $fileInput.addEventListener("change", async (event) => {
     if (code == 0) {
       $step.textContent = "Transcribing audio...";
       info.audio = $audioOutput.src = output;
-      info.transcript = await transcribe(output);
+      // Get the transcript from the server if it exists. Else transcribe the audio.
+      try {
+        info.transcript = await fetch(`uploads/${file.name}/transcript.json`).then((r) => r.json());
+      } catch (e) {
+        info.transcript = await transcribe(output);
+      }
       draw();
       $controls.classList.remove("d-none");
     }
@@ -103,7 +105,7 @@ async function transcribe(audioURL) {
   formData.append("response_format", "verbose_json");
   formData.append("model", "whisper-large-v3");
   formData.append("language", "en");
-  formData.append("file", await fetch(audioURL).then((r) => r.blob()), "audio.wav");
+  formData.append("file", await fetch(audioURL).then((r) => r.blob()), "audio.opus");
   return fetch(url, { method: "POST", credentials: "include", body: formData }).then((r) => r.json());
 }
 

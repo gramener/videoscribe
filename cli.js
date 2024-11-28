@@ -15,8 +15,20 @@ const eventStreamHeaders = {
   "Cache-Control": "no-cache",
   Connection: "keep-alive",
 };
-const keyFrameArgs = ["-vf", "select='key',showinfo", "-vsync", "vfr", "-compression_level", "10"];
-const audioArgs = ["-b:a", "32k", "-ac", "1", "-ar", "22050"];
+
+// Get key frames with defined gap between frames
+const keyFrameArgs = (gap) => [
+  "-vf",
+  `select='key*(isnan(prev_selected_t)+gte(t-prev_selected_t,${gap}))',setpts='PTS-STARTPTS',showinfo`,
+  "-vsync",
+  "vfr",
+  "-compression_level",
+  "10",
+];
+
+// Convert to single-channel audio with defined bitrate
+const audioArgs = (bitrate) => ["-c:a", "libopus", "-b:a", bitrate, "-ar", bitrate];
+
 const writeEvent = (key, data, res) => {
   const textData = Buffer.from(data).toString("utf-8");
   res.write(`data: ${JSON.stringify({ [key]: textData })}\n\n`);
@@ -51,16 +63,18 @@ const ffmpeg = (args, res) => {
 
 app.post("/audio", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).send("No file uploaded.");
-  const output = path.join(path.dirname(req.file.path), "audio.mp3");
+  const output = path.join(path.dirname(req.file.path), "audio.opus");
+  const bitrate = req.query.bitrate || "8000";
   res.writeHead(200, eventStreamHeaders);
-  ffmpeg(["-i", req.file.path, ...audioArgs, output], res);
+  ffmpeg(["-i", req.file.path, ...audioArgs(bitrate), output], res);
 });
 
 app.post("/keyframes", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).send("No file uploaded.");
+  const gap = req.query.gap || req.body.gap || "1";
   const output = path.join(path.dirname(req.file.path), "%04d.jpg");
   res.writeHead(200, eventStreamHeaders);
-  ffmpeg(["-i", req.file.path, ...keyFrameArgs, output], res);
+  ffmpeg(["-i", req.file.path, ...keyFrameArgs(gap), output], res);
 });
 
 app.listen(port, () => {

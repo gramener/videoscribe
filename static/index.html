@@ -57,22 +57,33 @@
 
   <div class="container">
     <h1 class="display-1 my-5 text-center">Video Scribe</h1>
-    <h2 class="display-6 text-center">A visual interface for image similarity.</h2>
+    <h2 class="display-6 text-center">Transcribe talk videos and extract key frames.</h2>
 
     <div class="mx-auto my-3 narrative">
-      <p><strong>Embeddings</strong> are an way of using large language models to analyze images.
-        Instead of asking the LLM to describe the image in text, we extract an <strong>array of numbers</strong>.
-        These numbers are <strong>similar</strong> for similar images.</p>
-      <p>This has 2 advantanges:</p>
-      <ol>
-        <li>It's <strong>quantitative</strong> — we can measure how similar images are</li>
-        <li>It's <strong>cheap</strong> — text generation is slower and more expensive</li>
-      </ol>
-      <p>Pick from one of the demos below. Or, if you're authorized, log in and explore with your own images.</p>
     </div>
 
-    <label for="file" class="form-label">Upload a video</label>
-    <input type="file" name="file" id="file" class="form-control" accept="video/*">
+    <form id="video-form"class="row g-3 align-items-end">
+      <div class="col">
+        <label for="file" class="form-label">Upload a video</label>
+        <input type="file" name="file" id="file" class="form-control" accept="video/*" required>
+      </div>
+      <div class="col-auto">
+        <label for="bitrate" class="form-label">Audio bit rate</label>
+        <select id="bitrate" name="bitrate" class="form-select">
+          <option value="22050">High quality (22,050)</option>
+          <option value="16000">Medium quality (16,000)</option>
+          <option value="11025">Low quality (11,025)</option>
+          <option value="8000">Lowest quality (8,000)</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label for="gap" class="form-label">Frame rate (seconds)</label>
+        <input type="number" id="gap" name="gap" class="form-control" value="1" min="1">
+      </div>
+      <div class="col-auto">
+        <button type="submit" id="extract" class="btn btn-primary">Extract</button>
+      </div>
+    </form>
 
     <div id="alert" class="alert alert-danger my-3 d-none" role="alert">
       <h4 class="alert-heading">Error</h4>
